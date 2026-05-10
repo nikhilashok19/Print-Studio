@@ -1,0 +1,865 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Polaroid Batch Printer</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0f0f0f;
+    --surface: #1a1a1a;
+    --surface2: #222222;
+    --border: #2e2e2e;
+    --border2: #3a3a3a;
+    --text: #f0ede8;
+    --text2: #888888;
+    --text3: #555555;
+    --accent: #e8e0d0;
+    --green: #4ade80;
+    --amber: #fbbf24;
+    --red: #f87171;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; }
+
+  .layout { display: grid; grid-template-columns: 340px 1fr; min-height: 100vh; }
+
+  /* SIDEBAR */
+  .sidebar {
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    overflow-y: auto;
+  }
+  .sidebar-header {
+    padding: 28px 24px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .logo {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    font-weight: 400;
+    letter-spacing: 0.15em;
+    color: var(--text2);
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .sidebar-title {
+    font-size: 20px;
+    font-weight: 500;
+    color: var(--text);
+    letter-spacing: -0.02em;
+  }
+
+  .section {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border);
+  }
+  .section-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    color: var(--text3);
+    text-transform: uppercase;
+    margin-bottom: 14px;
+  }
+
+  /* DROP ZONE */
+  .drop-zone {
+    border: 1px dashed var(--border2);
+    border-radius: 8px;
+    padding: 28px 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+  .drop-zone:hover { border-color: var(--text2); background: rgba(255,255,255,0.02); }
+  .drop-zone.drag { border-color: var(--accent); background: rgba(232,224,208,0.04); }
+  .drop-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .dz-icon {
+    width: 36px; height: 36px;
+    border: 1px solid var(--border2);
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 12px;
+    font-size: 16px;
+  }
+  .dz-title { font-size: 13px; font-weight: 500; color: var(--text); margin-bottom: 4px; }
+  .dz-sub { font-size: 11px; color: var(--text2); }
+  .file-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    margin-top: 12px;
+    background: rgba(74,222,128,0.1);
+    border: 1px solid rgba(74,222,128,0.25);
+    border-radius: 4px;
+    padding: 4px 10px;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--green);
+  }
+  .file-badge::before { content: '●'; font-size: 8px; }
+
+  /* CONTROLS */
+  .control-row { margin-bottom: 14px; }
+  .control-row:last-child { margin-bottom: 0; }
+  .control-label {
+    font-size: 12px;
+    color: var(--text2);
+    margin-bottom: 6px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .control-label span {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+  }
+  select, input[type="text"], input[type="number"] {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 13px;
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    transition: border-color 0.15s;
+    appearance: none;
+    -webkit-appearance: none;
+  }
+  select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23666'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; padding-right: 28px; }
+  select:focus, input:focus { outline: none; border-color: var(--text2); }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  /* QUALITY SLIDER */
+  input[type="range"] {
+    width: 100%; height: 3px;
+    background: var(--border2);
+    border-radius: 2px;
+    outline: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    -webkit-appearance: none;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+  }
+
+  /* BW TOGGLE */
+  .toggle-row { display: flex; align-items: center; justify-content: space-between; }
+  .toggle-label { font-size: 13px; color: var(--text); }
+  .toggle-sub { font-size: 11px; color: var(--text2); margin-top: 1px; }
+  .toggle {
+    position: relative; width: 36px; height: 20px; cursor: pointer; flex-shrink: 0;
+  }
+  .toggle input { opacity: 0; width: 0; height: 0; }
+  .toggle-track {
+    position: absolute; inset: 0;
+    background: var(--border2);
+    border-radius: 20px;
+    transition: background 0.2s;
+  }
+  .toggle input:checked ~ .toggle-track { background: var(--accent); }
+  .toggle-thumb {
+    position: absolute; top: 3px; left: 3px;
+    width: 14px; height: 14px;
+    background: #fff; border-radius: 50%;
+    transition: transform 0.2s;
+  }
+  .toggle input:checked ~ .toggle-thumb { transform: translateX(16px); }
+
+  /* GENERATE BUTTON */
+  .gen-wrap { padding: 20px 24px; }
+  .gen-btn {
+    width: 100%;
+    padding: 12px;
+    background: var(--accent);
+    color: #111;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    font-family: 'DM Sans', sans-serif;
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.1s;
+    letter-spacing: -0.01em;
+  }
+  .gen-btn:hover:not(:disabled) { opacity: 0.9; }
+  .gen-btn:active:not(:disabled) { transform: scale(0.99); }
+  .gen-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  /* PROGRESS */
+  .progress-box {
+    margin-top: 12px;
+    display: none;
+  }
+  .prog-track {
+    height: 2px; background: var(--border2);
+    border-radius: 2px; overflow: hidden;
+  }
+  .prog-fill {
+    height: 100%; width: 0%; background: var(--accent);
+    transition: width 0.1s;
+    border-radius: 2px;
+  }
+  .prog-text {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--text2);
+    margin-top: 7px;
+    display: flex; justify-content: space-between;
+  }
+
+  /* DOWNLOAD */
+  .dl-btn {
+    display: none;
+    width: 100%;
+    margin-top: 10px;
+    padding: 11px;
+    background: transparent;
+    border: 1px solid var(--border2);
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 400;
+    font-family: 'DM Sans', sans-serif;
+    color: var(--text);
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+    text-align: center;
+  }
+  .dl-btn:hover { background: var(--surface2); border-color: var(--text2); }
+
+  /* STATS */
+  .stats-row {
+    display: none;
+    margin-top: 10px;
+    gap: 8px;
+  }
+  .stat {
+    flex: 1;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 10px;
+    text-align: center;
+  }
+  .stat-val { font-family: 'DM Mono', monospace; font-size: 15px; font-weight: 500; color: var(--text); }
+  .stat-key { font-size: 10px; color: var(--text2); margin-top: 2px; }
+
+  /* MAIN CONTENT */
+  .main { display: flex; flex-direction: column; overflow: hidden; }
+  .main-header {
+    padding: 20px 28px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .main-title { font-size: 13px; color: var(--text2); font-family: 'DM Mono', monospace; font-weight: 400; letter-spacing: 0.06em; }
+  .page-nav { display: flex; align-items: center; gap: 10px; }
+  .page-btn {
+    width: 28px; height: 28px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    color: var(--text);
+    font-size: 14px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: border-color 0.15s;
+  }
+  .page-btn:hover:not(:disabled) { border-color: var(--text2); }
+  .page-btn:disabled { opacity: 0.3; cursor: default; }
+  .page-counter { font-family: 'DM Mono', monospace; font-size: 12px; color: var(--text2); min-width: 60px; text-align: center; }
+
+  .preview-area {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 32px;
+    overflow: auto;
+    background: repeating-linear-gradient(
+      45deg, transparent, transparent 20px,
+      rgba(255,255,255,0.01) 20px, rgba(255,255,255,0.01) 40px
+    );
+  }
+  .empty-state {
+    text-align: center;
+    max-width: 280px;
+  }
+  .empty-icon {
+    width: 64px; height: 64px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 28px;
+    margin: 0 auto 16px;
+    color: var(--text3);
+  }
+  .empty-title { font-size: 16px; font-weight: 500; color: var(--text2); margin-bottom: 6px; }
+  .empty-sub { font-size: 13px; color: var(--text3); line-height: 1.5; }
+
+  .canvas-wrap {
+    display: none;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5), 0 4px 16px rgba(0,0,0,0.4);
+    border-radius: 2px;
+    overflow: hidden;
+    max-width: 100%;
+    max-height: 100%;
+  }
+  .canvas-wrap canvas { display: block; max-width: 100%; max-height: calc(100vh - 140px); object-fit: contain; }
+
+  /* THUMB STRIP */
+  .thumb-strip {
+    display: none;
+    padding: 12px 28px;
+    border-top: 1px solid var(--border);
+    gap: 8px;
+    overflow-x: auto;
+    flex-shrink: 0;
+    background: var(--surface);
+  }
+  .thumb {
+    flex-shrink: 0;
+    width: 40px; height: 56px;
+    border-radius: 3px;
+    overflow: hidden;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: border-color 0.15s;
+    background: var(--surface2);
+  }
+  .thumb.active { border-color: var(--accent); }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; }
+    .main { min-height: 60vh; }
+  }
+</style>
+</head>
+<body>
+
+<div class="layout">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="logo">Polaroid Batch Printer</div>
+      <div class="sidebar-title">Print Studio</div>
+    </div>
+
+    <!-- UPLOAD -->
+    <div class="section">
+      <div class="section-label">Photos</div>
+      <div class="drop-zone" id="dz">
+        <input type="file" id="fileIn" multiple accept="image/*">
+        <div class="dz-icon">📁</div>
+        <div class="dz-title">Drop photos here</div>
+        <div class="dz-sub">or click to browse — JPG, PNG, WEBP</div>
+        <div class="file-badge" id="fileBadge" style="display:none"></div>
+      </div>
+    </div>
+
+    <!-- CROP -->
+    <div class="section">
+      <div class="section-label">Crop & Aspect</div>
+      <div class="control-row">
+        <div class="control-label">Aspect ratio for photo area</div>
+        <select id="cropAspect">
+          <option value="landscape_wide">3:2 — Standard landscape (recommended)</option>
+          <option value="landscape_cin">2.35:1 — Cinematic widescreen</option>
+          <option value="golden">1.618:1 — Golden ratio</option>
+          <option value="wide_hd">16:9 — HD widescreen</option>
+        </select>
+      </div>
+      <div class="control-row">
+        <div class="control-label">Crop anchor point</div>
+        <select id="cropAnchor">
+          <option value="center">Center</option>
+          <option value="top">Top</option>
+          <option value="bottom">Bottom</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- POLAROID STYLE -->
+    <div class="section">
+      <div class="section-label">Polaroid Style</div>
+      <div class="control-row">
+        <div class="control-label">Bottom caption / label</div>
+        <input type="text" id="captionText" placeholder="e.g. Project Name 2024">
+      </div>
+      <div class="control-row row2">
+        <div>
+          <div class="control-label">Side border (mm)</div>
+          <input type="number" id="sideBorder" value="6" min="3" max="15">
+        </div>
+        <div>
+          <div class="control-label">Bottom tab (mm)</div>
+          <input type="number" id="bottomTab" value="22" min="12" max="40">
+        </div>
+      </div>
+      <div class="control-row">
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label">Black &amp; white</div>
+            <div class="toggle-sub">Luminance-weighted conversion</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="bwToggle" checked>
+            <div class="toggle-track"></div>
+            <div class="toggle-thumb"></div>
+          </label>
+        </div>
+      </div>
+      <div class="control-row">
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label">Add grain texture</div>
+            <div class="toggle-sub">Subtle film-like noise</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="grainToggle" checked>
+            <div class="toggle-track"></div>
+            <div class="toggle-thumb"></div>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- OUTPUT -->
+    <div class="section">
+      <div class="section-label">Output Quality</div>
+      <div class="control-row">
+        <div class="control-label">JPEG quality <span id="qualVal">92%</span></div>
+        <input type="range" id="quality" min="70" max="100" value="92" step="1">
+      </div>
+      <div class="control-row">
+        <div class="control-label">PDF filename</div>
+        <input type="text" id="filename" value="polaroids" placeholder="filename (no .pdf)">
+      </div>
+    </div>
+
+    <!-- GENERATE -->
+    <div class="gen-wrap">
+      <button class="gen-btn" id="genBtn" disabled>Generate PDF</button>
+      <div class="progress-box" id="progBox">
+        <div class="prog-track"><div class="prog-fill" id="progFill"></div></div>
+        <div class="prog-text"><span id="progLabel">Starting…</span><span id="progPct">0%</span></div>
+      </div>
+      <div class="stats-row" id="statsRow" style="display:flex">
+        <div class="stat"><div class="stat-val" id="statPages">—</div><div class="stat-key">Pages</div></div>
+        <div class="stat"><div class="stat-val" id="statPhotos">—</div><div class="stat-key">Photos</div></div>
+        <div class="stat"><div class="stat-val" id="statSize">—</div><div class="stat-key">Est. size</div></div>
+      </div>
+      <button class="dl-btn" id="dlBtn">⬇ Download PDF</button>
+    </div>
+  </aside>
+
+  <!-- MAIN PREVIEW -->
+  <main class="main">
+    <div class="main-header">
+      <div class="main-title">Preview — Portrait A4 / 300 DPI</div>
+      <div class="page-nav">
+        <button class="page-btn" id="prevPage" disabled>‹</button>
+        <div class="page-counter" id="pageCounter">— / —</div>
+        <button class="page-btn" id="nextPage" disabled>›</button>
+      </div>
+    </div>
+
+    <div class="preview-area" id="previewArea">
+      <div class="empty-state" id="emptyState">
+        <div class="empty-icon">🎞</div>
+        <div class="empty-title">No photos yet</div>
+        <div class="empty-sub">Upload building photos on the left. Each landscape photo becomes a polaroid — 2 per A4 portrait page at 300 DPI.</div>
+      </div>
+      <div class="canvas-wrap" id="canvasWrap">
+        <canvas id="previewCanvas"></canvas>
+      </div>
+    </div>
+
+    <div class="thumb-strip" id="thumbStrip"></div>
+  </main>
+</div>
+
+<!-- jsPDF via CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+// ─── CONSTANTS ───────────────────────────────────────────────────────────────
+const DPI       = 300;
+const MM2PX     = DPI / 25.4;          // 11.811 px per mm at 300 DPI
+
+// A4 Portrait
+const A4_W_MM   = 210;
+const A4_H_MM   = 297;
+const A4_W      = Math.round(A4_W_MM * MM2PX);   // 2480 px
+const A4_H      = Math.round(A4_H_MM * MM2PX);   // 3508 px
+
+// Polaroid card — landscape orientation: 7" wide × 5" tall
+const POL_W_MM  = 7 * 25.4;   // 177.8 mm
+const POL_H_MM  = 5 * 25.4;   // 127.0 mm
+const POL_W     = Math.round(POL_W_MM * MM2PX);   // 2100 px
+const POL_H     = Math.round(POL_H_MM * MM2PX);   // 1500 px
+
+// ─── STATE ───────────────────────────────────────────────────────────────────
+let files       = [];
+let pageCanvases = [];
+let pdfBlob     = null;
+let currentPage = 0;
+
+// ─── DOM REFS ────────────────────────────────────────────────────────────────
+const dz          = document.getElementById('dz');
+const fileIn      = document.getElementById('fileIn');
+const fileBadge   = document.getElementById('fileBadge');
+const genBtn      = document.getElementById('genBtn');
+const dlBtn       = document.getElementById('dlBtn');
+const progBox     = document.getElementById('progBox');
+const progFill    = document.getElementById('progFill');
+const progLabel   = document.getElementById('progLabel');
+const progPct     = document.getElementById('progPct');
+const statsRow    = document.getElementById('statsRow');
+const statPages   = document.getElementById('statPages');
+const statPhotos  = document.getElementById('statPhotos');
+const statSize    = document.getElementById('statSize');
+const previewCanvas = document.getElementById('previewCanvas');
+const canvasWrap  = document.getElementById('canvasWrap');
+const emptyState  = document.getElementById('emptyState');
+const thumbStrip  = document.getElementById('thumbStrip');
+const pageCounter = document.getElementById('pageCounter');
+const prevPageBtn = document.getElementById('prevPage');
+const nextPageBtn = document.getElementById('nextPage');
+const qualSlider  = document.getElementById('quality');
+const qualVal     = document.getElementById('qualVal');
+
+qualSlider.addEventListener('input', () => qualVal.textContent = qualSlider.value + '%');
+
+// ─── FILE HANDLING ────────────────────────────────────────────────────────────
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag'));
+dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('drag'); handleFiles(e.dataTransfer.files); });
+fileIn.addEventListener('change', () => handleFiles(fileIn.files));
+
+function handleFiles(fList) {
+  files = Array.from(fList).filter(f => f.type.startsWith('image/'));
+  if (!files.length) return;
+  fileBadge.style.display = 'inline-flex';
+  fileBadge.textContent = files.length + ' photo' + (files.length !== 1 ? 's' : '') + ' loaded';
+  genBtn.disabled = false;
+  pdfBlob = null;
+  dlBtn.style.display = 'none';
+  pageCanvases = [];
+  canvasWrap.style.display = 'none';
+  emptyState.style.display = 'block';
+  thumbStrip.style.display = 'none';
+  thumbStrip.innerHTML = '';
+  statPhotos.textContent = files.length;
+  const estPages = Math.ceil(files.length / 2);
+  statPages.textContent = estPages;
+  statSize.textContent = '—';
+  pageCounter.textContent = '— / —';
+}
+
+// ─── IMAGE LOADER ─────────────────────────────────────────────────────────────
+function loadImage(file) {
+  return new Promise((res, rej) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => { URL.revokeObjectURL(url); res(img); };
+    img.onerror = rej;
+    img.src = url;
+  });
+}
+
+// ─── CROP ASPECT RATIOS ───────────────────────────────────────────────────────
+function getAspect(mode) {
+  if (mode === 'landscape_wide') return 3 / 2;
+  if (mode === 'landscape_cin')  return 2.35;
+  if (mode === 'golden')         return 1.618;
+  if (mode === 'wide_hd')        return 16 / 9;
+  return 3 / 2;
+}
+
+// ─── DRAW SINGLE POLAROID (landscape card, landscape photo inside) ─────────────
+function drawPolaroid(img, opts) {
+  const {
+    aspectRatio, anchor,
+    sideBorderPx, bottomTabPx,
+    bw, grain, caption
+  } = opts;
+
+  const c   = document.createElement('canvas');
+  c.width   = POL_W;
+  c.height  = POL_H;
+  const ctx = c.getContext('2d');
+
+  // White polaroid card
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, POL_W, POL_H);
+
+  // Photo area dimensions (landscape inside landscape polaroid)
+  const topBorderPx   = sideBorderPx;                           // equal border top
+  const photoW        = POL_W - 2 * sideBorderPx;
+  const photoH        = POL_H - topBorderPx - bottomTabPx;      // leave room for caption tab
+
+  // Source crop: fit img into photoW×photoH while respecting aspect
+  const srcW = img.naturalWidth;
+  const srcH = img.naturalHeight;
+  const targetAspect = photoW / photoH;   // the photo slot aspect
+
+  // We crop the source to match the target slot aspect
+  let cropW, cropH, sx, sy;
+  if (srcW / srcH > targetAspect) {
+    // source is wider → crop sides
+    cropH = srcH;
+    cropW = Math.round(srcH * targetAspect);
+    if (anchor === 'center') sx = Math.round((srcW - cropW) / 2);
+    else if (anchor === 'top') sx = 0;
+    else sx = srcW - cropW;
+    sy = 0;
+  } else {
+    // source is taller → crop top/bottom
+    cropW = srcW;
+    cropH = Math.round(srcW / targetAspect);
+    sx = 0;
+    if (anchor === 'center') sy = Math.round((srcH - cropH) / 2);
+    else if (anchor === 'top') sy = 0;
+    else sy = srcH - cropH;
+  }
+
+  // Draw photo
+  ctx.drawImage(img, sx, sy, cropW, cropH, sideBorderPx, topBorderPx, photoW, photoH);
+
+  // Black & White
+  if (bw) {
+    const id   = ctx.getImageData(sideBorderPx, topBorderPx, photoW, photoH);
+    const data = id.data;
+    for (let i = 0; i < data.length; i += 4) {
+      const g = Math.round(0.299 * data[i] + 0.587 * data[i+1] + 0.114 * data[i+2]);
+      data[i] = data[i+1] = data[i+2] = g;
+    }
+    ctx.putImageData(id, sideBorderPx, topBorderPx);
+  }
+
+  // Grain texture
+  if (grain) {
+    const id   = ctx.getImageData(sideBorderPx, topBorderPx, photoW, photoH);
+    const data = id.data;
+    for (let i = 0; i < data.length; i += 4) {
+      const n = (Math.random() - 0.5) * 18;
+      data[i]   = Math.min(255, Math.max(0, data[i]   + n));
+      data[i+1] = Math.min(255, Math.max(0, data[i+1] + n));
+      data[i+2] = Math.min(255, Math.max(0, data[i+2] + n));
+    }
+    ctx.putImageData(id, sideBorderPx, topBorderPx);
+  }
+
+  // Caption in bottom tab
+  if (caption) {
+    const maxFontPx = Math.round(bottomTabPx * 0.36);
+    ctx.font = `300 ${maxFontPx}px 'DM Sans', sans-serif`;
+    ctx.fillStyle = '#333333';
+    ctx.textAlign  = 'center';
+    ctx.textBaseline = 'middle';
+    const tabCenterY = topBorderPx + photoH + Math.round(bottomTabPx / 2);
+    ctx.fillText(caption, POL_W / 2, tabCenterY, photoW);
+  }
+
+  // Subtle outer border on polaroid card
+  ctx.strokeStyle = '#d8d8d8';
+  ctx.lineWidth   = 3;
+  ctx.strokeRect(1.5, 1.5, POL_W - 3, POL_H - 3);
+
+  return c;
+}
+
+// ─── DRAW A4 PAGE WITH 2 POLAROIDS (portrait A4, landscape polaroids stacked) ──
+function drawA4Page(pol1, pol2) {
+  const c   = document.createElement('canvas');
+  c.width   = A4_W;
+  c.height  = A4_H;
+  const ctx = c.getContext('2d');
+
+  // Paper background
+  ctx.fillStyle = '#eeeeee';
+  ctx.fillRect(0, 0, A4_W, A4_H);
+
+  // Polaroids are landscape (wider than tall). Center horizontally.
+  // Stack 2 vertically with even spacing.
+  const marginX  = Math.round((A4_W - POL_W) / 2);
+  const gap       = Math.round(A4_H * 0.035);     // ~3.5% of page height
+  const totalH    = POL_H * 2 + gap;
+  const marginY   = Math.round((A4_H - totalH) / 2);
+
+  // Drop shadow helper
+  function shadow(ctx, x, y, w, h) {
+    ctx.save();
+    ctx.shadowColor   = 'rgba(0,0,0,0.22)';
+    ctx.shadowBlur    = Math.round(A4_W * 0.012);
+    ctx.shadowOffsetX = Math.round(A4_W * 0.003);
+    ctx.shadowOffsetY = Math.round(A4_W * 0.004);
+    ctx.fillStyle     = '#ffffff';
+    ctx.fillRect(x, y, w, h);
+    ctx.restore();
+  }
+
+  // Draw shadow placeholders then actual polaroids
+  shadow(ctx, marginX, marginY, POL_W, POL_H);
+  ctx.drawImage(pol1, marginX, marginY);
+
+  if (pol2) {
+    shadow(ctx, marginX, marginY + POL_H + gap, POL_W, POL_H);
+    ctx.drawImage(pol2, marginX, marginY + POL_H + gap);
+  }
+
+  return c;
+}
+
+// ─── UPDATE PREVIEW ──────────────────────────────────────────────────────────
+function showPage(idx) {
+  if (!pageCanvases.length) return;
+  idx = Math.max(0, Math.min(idx, pageCanvases.length - 1));
+  currentPage = idx;
+
+  const src = pageCanvases[idx];
+  previewCanvas.width  = src.width;
+  previewCanvas.height = src.height;
+  previewCanvas.getContext('2d').drawImage(src, 0, 0);
+
+  pageCounter.textContent = (idx + 1) + ' / ' + pageCanvases.length;
+  prevPageBtn.disabled = idx === 0;
+  nextPageBtn.disabled = idx === pageCanvases.length - 1;
+
+  document.querySelectorAll('.thumb').forEach((t, i) => {
+    t.classList.toggle('active', i === idx);
+  });
+}
+
+prevPageBtn.addEventListener('click', () => showPage(currentPage - 1));
+nextPageBtn.addEventListener('click', () => showPage(currentPage + 1));
+
+// ─── GENERATE ────────────────────────────────────────────────────────────────
+genBtn.addEventListener('click', async () => {
+  if (!files.length) return;
+
+  genBtn.disabled  = true;
+  dlBtn.style.display = 'none';
+  pdfBlob          = null;
+  progBox.style.display = 'block';
+  pageCanvases     = [];
+  thumbStrip.innerHTML = '';
+
+  const opts = {
+    aspectRatio   : getAspect(document.getElementById('cropAspect').value),
+    anchor        : document.getElementById('cropAnchor').value,
+    sideBorderPx  : Math.round(parseFloat(document.getElementById('sideBorder').value) * MM2PX),
+    bottomTabPx   : Math.round(parseFloat(document.getElementById('bottomTab').value)  * MM2PX),
+    bw            : document.getElementById('bwToggle').checked,
+    grain         : document.getElementById('grainToggle').checked,
+    caption       : document.getElementById('captionText').value.trim()
+  };
+
+  const total = files.length;
+
+  const setProgress = (done, label) => {
+    const pct = Math.round((done / total) * 100);
+    progFill.style.width = pct + '%';
+    progLabel.textContent = label;
+    progPct.textContent   = pct + '%';
+  };
+
+  for (let i = 0; i < total; i += 2) {
+    setProgress(i, `Processing ${i + 1}–${Math.min(i + 2, total)} of ${total}`);
+    await new Promise(r => setTimeout(r, 0)); // yield to UI
+
+    const img1 = await loadImage(files[i]);
+    const pol1 = drawPolaroid(img1, opts);
+
+    let pol2 = null;
+    if (i + 1 < total) {
+      const img2 = await loadImage(files[i + 1]);
+      pol2 = drawPolaroid(img2, opts);
+    }
+
+    const page = drawA4Page(pol1, pol2);
+    pageCanvases.push(page);
+
+    // Thumbnail
+    const thumb = document.createElement('div');
+    thumb.className = 'thumb' + (pageCanvases.length === 1 ? ' active' : '');
+    thumb.dataset.idx = pageCanvases.length - 1;
+    const tImg = document.createElement('img');
+    // Downscale for thumb
+    const tc = document.createElement('canvas');
+    tc.width = 40; tc.height = Math.round(40 * (A4_H / A4_W));
+    tc.getContext('2d').drawImage(page, 0, 0, tc.width, tc.height);
+    tImg.src = tc.toDataURL('image/jpeg', 0.6);
+    thumb.appendChild(tImg);
+    thumb.addEventListener('click', () => showPage(parseInt(thumb.dataset.idx)));
+    thumbStrip.appendChild(thumb);
+  }
+
+  setProgress(total, 'Building PDF…');
+  await new Promise(r => setTimeout(r, 0));
+
+  // Build PDF
+  const qual = parseInt(qualSlider.value) / 100;
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
+
+  for (let i = 0; i < pageCanvases.length; i++) {
+    if (i > 0) doc.addPage();
+    const imgData = pageCanvases[i].toDataURL('image/jpeg', qual);
+    doc.addImage(imgData, 'JPEG', 0, 0, A4_W_MM, A4_H_MM);
+  }
+
+  pdfBlob = doc.output('blob');
+  const sizeMB = (pdfBlob.size / 1024 / 1024).toFixed(1);
+
+  progFill.style.width = '100%';
+  progLabel.textContent = 'Done!';
+  progPct.textContent   = '100%';
+
+  // Update stats
+  statPages.textContent  = pageCanvases.length;
+  statPhotos.textContent = files.length;
+  statSize.textContent   = sizeMB + ' MB';
+
+  // Show preview
+  emptyState.style.display = 'none';
+  canvasWrap.style.display = 'block';
+  thumbStrip.style.display = 'flex';
+  showPage(0);
+
+  dlBtn.textContent    = `⬇  Download  •  ${pageCanvases.length} pages  •  ${files.length} photos  •  ${sizeMB} MB`;
+  dlBtn.style.display  = 'block';
+  genBtn.disabled      = false;
+});
+
+// ─── DOWNLOAD ─────────────────────────────────────────────────────────────────
+dlBtn.addEventListener('click', () => {
+  if (!pdfBlob) return;
+  const name = (document.getElementById('filename').value.trim() || 'polaroids') + '.pdf';
+  const url  = URL.createObjectURL(pdfBlob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 8000);
+});
+</script>
+</body>
+</html>
